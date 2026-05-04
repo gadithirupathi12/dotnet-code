@@ -8,7 +8,7 @@ namespace EmployeeApp.Tests;
 public class EmployeeSeleniumTests : IDisposable
 {
     private readonly IWebDriver _driver;
-    private readonly string _baseUrl = "http://192.168.1.100:5000"; // VM IP
+    private readonly string _baseUrl = "http://13.206.207.211:5000/"; // VM IP
     private readonly WebDriverWait _wait;
 
     public EmployeeSeleniumTests()
