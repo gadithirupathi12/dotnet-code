@@ -2,96 +2,128 @@ using OpenQA.Selenium;
 using OpenQA.Selenium.Chrome;
 using OpenQA.Selenium.Support.UI;
 using Xunit;
+using System;
+using System.Net.Http;
+using System.Threading;
 
 namespace EmployeeApp.Tests;
 
-public class EmployeeSeleniumTests : IDisposable
+public class EmployeeSeleniumTests
 {
-    private readonly IWebDriver _driver;
     private readonly string _baseUrl = "http://13.206.207.211:5000/";
-    private readonly WebDriverWait _wait;
 
-    public EmployeeSeleniumTests()
+    // ---------------- DRIVER FACTORY ----------------
+    private IWebDriver CreateDriver()
     {
         var options = new ChromeOptions();
-        options.AddArgument("--headless");
+        options.AddArgument("--headless=new");
         options.AddArgument("--no-sandbox");
         options.AddArgument("--disable-dev-shm-usage");
         options.AddArgument("--disable-gpu");
 
-        _driver = new ChromeDriver(options);
-        _driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(5);
-        _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(20));
+        return new ChromeDriver(options);
     }
 
+    private WebDriverWait CreateWait(IWebDriver driver)
+    {
+        return new WebDriverWait(driver, TimeSpan.FromSeconds(30));
+    }
+
+    // ---------------- APP HEALTH CHECK ----------------
+    private void WaitForApp()
+    {
+        using var client = new HttpClient();
+        client.Timeout = TimeSpan.FromSeconds(5);
+
+        for (int i = 0; i < 30; i++)
+        {
+            try
+            {
+                var res = client.GetAsync(_baseUrl).Result;
+                if (res.IsSuccessStatusCode)
+                    return;
+            }
+            catch { }
+
+            Thread.Sleep(3000);
+        }
+
+        throw new Exception("❌ App is not reachable after waiting 90 seconds");
+    }
+
+    // ---------------- TEST 1 ----------------
     [Fact]
     public void Test_PageLoads_Successfully()
     {
-        _driver.Navigate().GoToUrl(_baseUrl);
+        WaitForApp();
 
-        _wait.Until(d => d.Title.Contains("Employee"));
+        using var driver = CreateDriver();
+        var wait = CreateWait(driver);
 
-        Assert.Contains("Employee", _driver.Title);
+        driver.Navigate().GoToUrl(_baseUrl);
 
-        var addBtn = _wait.Until(d => d.FindElement(By.Id("addBtn")));
+        wait.Until(d => d.Title.Contains("Employee"));
+
+        Assert.Contains("Employee", driver.Title);
+
+        var addBtn = wait.Until(d => d.FindElement(By.Id("addBtn")));
         Assert.True(addBtn.Displayed);
     }
 
+    // ---------------- TEST 2 ----------------
     [Fact]
     public void Test_AddEmployee_AppearsInList()
     {
-        _driver.Navigate().GoToUrl(_baseUrl);
+        WaitForApp();
 
-        var nameInput = _wait.Until(d => d.FindElement(By.Id("empName")));
+        using var driver = CreateDriver();
+        var wait = CreateWait(driver);
+
+        driver.Navigate().GoToUrl(_baseUrl);
+
+        var nameInput = wait.Until(d => d.FindElement(By.Id("empName")));
         nameInput.Clear();
         nameInput.SendKeys("Jane Doe");
 
-        _driver.FindElement(By.Id("addBtn")).Click();
+        var addBtn = wait.Until(d => d.FindElement(By.Id("addBtn")));
+        addBtn.Click();
 
-        // Wait until list contains new employee
-        _wait.Until(d =>
-        {
-            var text = d.FindElement(By.Id("empList")).Text;
-            return text.Contains("Jane Doe");
-        });
+        wait.Until(d => d.FindElement(By.Id("empList")).Text.Contains("Jane Doe"));
 
-        var listText = _driver.FindElement(By.Id("empList")).Text;
+        var listText = driver.FindElement(By.Id("empList")).Text;
         Assert.Contains("Jane Doe", listText);
     }
 
+    // ---------------- TEST 3 ----------------
     [Fact]
     public void Test_AddMultipleEmployees()
     {
-        _driver.Navigate().GoToUrl(_baseUrl);
+        WaitForApp();
+
+        using var driver = CreateDriver();
+        var wait = CreateWait(driver);
+
+        driver.Navigate().GoToUrl(_baseUrl);
 
         var employees = new[] { "Tom Harris", "Sara Connor" };
 
         foreach (var emp in employees)
         {
-            var input = _wait.Until(d => d.FindElement(By.Id("empName")));
+            var input = wait.Until(d => d.FindElement(By.Id("empName")));
             input.Clear();
             input.SendKeys(emp);
 
-            _driver.FindElement(By.Id("addBtn")).Click();
+            var addBtn = wait.Until(d => d.FindElement(By.Id("addBtn")));
+            addBtn.Click();
 
-            // Wait until each employee appears before moving on
-            _wait.Until(d =>
-            {
-                var text = d.FindElement(By.Id("empList")).Text;
-                return text.Contains(emp);
-            });
+            wait.Until(d => d.FindElement(By.Id("empList")).Text.Contains(emp));
         }
 
-        var finalText = _driver.FindElement(By.Id("empList")).Text;
+        var finalText = driver.FindElement(By.Id("empList")).Text;
 
         foreach (var emp in employees)
         {
             Assert.Contains(emp, finalText);
         }
-    }
-
-    public void Dispose()
-    {
-        _driver.Quit();
     }
 }
