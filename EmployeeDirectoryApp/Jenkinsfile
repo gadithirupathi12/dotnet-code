@@ -1,0 +1,100 @@
+pipeline {
+    agent any
+
+    environment {
+        VM_IP      = '13.206.207.211'   // Replace with your VM IP
+        VM_PORT    = '5000'
+        APP_DIR    = '/opt/employee-app-team-c'
+        DOTNET     = 'dotnet'
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                echo 'Cloning repository...'
+                git branch: 'main',
+                    url: 'https://github.com/gadithirupathi12/testingfolder.git'
+            }
+        }
+
+        stage('Restore Dependencies') {
+            steps {
+                sh 'dotnet restore EmployeeDirectoryApp.sln'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh '''
+                    dotnet build EmployeeDirectoryApp.sln \
+                        --configuration Release \
+                        --no-restore
+                '''
+            }
+        }
+
+        stage('Deploy to VM') {
+            steps {
+                sh '''
+                    # Stop existing process
+                    pkill -f 'dotnet.*EmployeeApp' || true
+
+                    # Publish application
+                    dotnet publish EmployeeApp/EmployeeApp.csproj \
+                        --configuration Release \
+                        --output ${APP_DIR}/publish
+
+                    # Start application in background
+                    cd ${APP_DIR}/publish
+                    nohup dotnet EmployeeApp.dll \
+                        --urls=http://0.0.0.0:${VM_PORT} \
+                        > ${APP_DIR}/app.log 2>&1 &
+                    echo $! > ${APP_DIR}/app.pid
+
+                    sleep 4
+                    echo 'App started with PID:' $(cat ${APP_DIR}/app.pid)
+                '''
+            }
+        }
+
+        stage('Verify App Running') {
+            steps {
+                sh '''
+                    curl -f http://${VM_IP}:${VM_PORT}/ \
+                        && echo 'App is UP' \
+                        || (echo 'App is DOWN'; exit 1)
+                '''
+            }
+        }
+
+        stage('Run Selenium Tests') {
+            steps {
+                sh '''
+                    dotnet test EmployeeApp.Tests/EmployeeApp.Tests.csproj \
+                        --configuration Release \
+                        --logger trx \
+                        --results-directory ./TestResults \
+                        -v normal
+                '''
+            }
+            post {
+                always {
+                    mstest testResultsFile: '**/*.trx',
+                           keepLongStdio: true
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Pipeline completed successfully!'
+            echo 'App accessible at: http://${VM_IP}:${VM_PORT}'
+        }
+        failure {
+            echo 'Pipeline FAILED. Check logs.'
+            sh 'pkill -f "dotnet.*EmployeeApp" || true'
+        }
+    }
+}

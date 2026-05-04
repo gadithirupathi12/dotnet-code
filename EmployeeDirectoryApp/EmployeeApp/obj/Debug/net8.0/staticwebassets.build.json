@@ -1,0 +1,19 @@
+{
+  "Version": 1,
+  "Hash": "io4aDjwHpyUPAnWntrGzupn+5whezXylbb0OU+QaCSY=",
+  "Source": "EmployeeApp",
+  "BasePath": "_content/EmployeeApp",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [
+    {
+      "Name": "EmployeeApp/wwwroot",
+      "Source": "EmployeeApp",
+      "ContentRoot": "/root/EmployeeDirectoryApp/EmployeeApp/wwwroot/",
+      "BasePath": "_content/EmployeeApp",
+      "Pattern": "**"
+    }
+  ],
+  "Assets": []
+}
