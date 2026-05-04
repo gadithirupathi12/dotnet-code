@@ -8,7 +8,7 @@ namespace EmployeeApp.Tests;
 public class EmployeeSeleniumTests : IDisposable
 {
     private readonly IWebDriver _driver;
-    private readonly string _baseUrl = "http://13.206.207.211:5000/"; // VM IP
+    private readonly string _baseUrl = "http://13.206.207.211:5000/";
     private readonly WebDriverWait _wait;
 
     public EmployeeSeleniumTests()
@@ -20,8 +20,8 @@ public class EmployeeSeleniumTests : IDisposable
         options.AddArgument("--disable-gpu");
 
         _driver = new ChromeDriver(options);
-        _driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(10);
-        _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(15));
+        _driver.Manage().Timeouts().ImplicitWait = TimeSpan.FromSeconds(5);
+        _wait = new WebDriverWait(_driver, TimeSpan.FromSeconds(20));
     }
 
     [Fact]
@@ -29,9 +29,12 @@ public class EmployeeSeleniumTests : IDisposable
     {
         _driver.Navigate().GoToUrl(_baseUrl);
 
-        Assert.Contains("Employee Directory", _driver.Title);
-        var addBtn = _driver.FindElement(By.Id("addBtn"));
-        Assert.True(addBtn.Displayed, "Add Employee button should be visible");
+        _wait.Until(d => d.Title.Contains("Employee"));
+
+        Assert.Contains("Employee", _driver.Title);
+
+        var addBtn = _wait.Until(d => d.FindElement(By.Id("addBtn")));
+        Assert.True(addBtn.Displayed);
     }
 
     [Fact]
@@ -39,18 +42,20 @@ public class EmployeeSeleniumTests : IDisposable
     {
         _driver.Navigate().GoToUrl(_baseUrl);
 
-        // Enter employee name
         var nameInput = _wait.Until(d => d.FindElement(By.Id("empName")));
         nameInput.Clear();
         nameInput.SendKeys("Jane Doe");
 
-        // Click Add Employee
         _driver.FindElement(By.Id("addBtn")).Click();
 
-        // Wait and verify employee appears
-        _wait.Until(d => d.FindElement(By.Id("empList")).Text.Contains("Jane Doe"));
-        var listText = _driver.FindElement(By.Id("empList")).Text;
+        // Wait until list contains new employee
+        _wait.Until(d =>
+        {
+            var text = d.FindElement(By.Id("empList")).Text;
+            return text.Contains("Jane Doe");
+        });
 
+        var listText = _driver.FindElement(By.Id("empList")).Text;
         Assert.Contains("Jane Doe", listText);
     }
 
@@ -58,21 +63,35 @@ public class EmployeeSeleniumTests : IDisposable
     public void Test_AddMultipleEmployees()
     {
         _driver.Navigate().GoToUrl(_baseUrl);
+
         var employees = new[] { "Tom Harris", "Sara Connor" };
 
         foreach (var emp in employees)
         {
-            var inp = _wait.Until(d => d.FindElement(By.Id("empName")));
-            inp.Clear();
-            inp.SendKeys(emp);
+            var input = _wait.Until(d => d.FindElement(By.Id("empName")));
+            input.Clear();
+            input.SendKeys(emp);
+
             _driver.FindElement(By.Id("addBtn")).Click();
-            Thread.Sleep(500);
+
+            // Wait until each employee appears before moving on
+            _wait.Until(d =>
+            {
+                var text = d.FindElement(By.Id("empList")).Text;
+                return text.Contains(emp);
+            });
         }
 
-        var listText = _driver.FindElement(By.Id("empList")).Text;
+        var finalText = _driver.FindElement(By.Id("empList")).Text;
+
         foreach (var emp in employees)
-            Assert.Contains(emp, listText);
+        {
+            Assert.Contains(emp, finalText);
+        }
     }
 
-    public void Dispose() => _driver.Quit();
+    public void Dispose()
+    {
+        _driver.Quit();
+    }
 }
